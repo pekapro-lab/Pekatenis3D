@@ -1,0 +1,7 @@
+{
+  "appId": "com.pekapro.pekatenis3d",
+  "appName": "PekaTenis 3D",
+  "webDir": "www",
+  "android": { "allowMixedContent": false, "backgroundColor": "#07111e" },
+  "server": { "androidScheme": "https" }
+}

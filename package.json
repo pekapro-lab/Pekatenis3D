@@ -1,0 +1,23 @@
+{
+  "name": "pekatenis3d",
+  "version": "1.0.0",
+  "description": "PekaTenis 3D",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:apk": "vite build --outDir www --emptyOutDir",
+    "test": "node scripts/test-scoring.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "peerjs": "^1.5.5",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1",
+    "vite": "^8.3.5"
+  }
+}

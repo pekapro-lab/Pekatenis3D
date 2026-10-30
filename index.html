@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#07111e" />
+    <meta name="description" content="PekaTenis 3D: tenis 3D para móvil contra la IA u online." />
+    <title>PekaTenis 3D</title>
+    <link rel="icon" type="image/png" href="./icon-192.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <script>
+      // Muestra errores de arranque en pantalla en vez de dejarla negra.
+      (function () {
+        function show(msg) {
+          var el = document.getElementById("boot-error");
+          if (!el) {
+            el = document.createElement("pre");
+            el.id = "boot-error";
+            el.style.cssText = "position:fixed;inset:0;z-index:99999;margin:0;padding:16px;overflow:auto;background:#1a0d0d;color:#ffd7d7;font:12px/1.4 monospace;white-space:pre-wrap";
+            (document.body || document.documentElement).appendChild(el);
+            el.textContent = "PekaTenis 3D: error al arrancar\n" + navigator.userAgent + "\n\n";
+          }
+          el.textContent += msg + "\n\n";
+        }
+        window.__bootError = show;
+        window.addEventListener("error", function (e) {
+          if (window.__booted) return;
+          show((e.message || "Error") + (e.filename ? "\n" + e.filename + ":" + e.lineno : "") + (e.error && e.error.stack ? "\n" + e.error.stack : ""));
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          if (window.__booted) return;
+          var r = e.reason; show("Promesa rechazada: " + (r && (r.stack || r.message) || r));
+        });
+        setTimeout(function () { if (!window.__booted) show("El juego no ha arrancado tras 8 s (¿el JS no carga en este WebView?)."); }, 8000);
+      })();
+    </script>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="aimpad"></div>
+    <div id="hud" class="hidden">
+      <button id="btnPause" class="round" aria-label="Pausa">II</button>
+      <div id="board"></div>
+      <div id="msg"></div>
+      <div id="hint"></div>
+      <div id="joy"><div id="joyKnob"></div></div>
+      <div id="shots"></div>
+      <button id="btnServe">SACAR</button>
+    </div>
+    <div id="menu" class="screen">
+      <div class="menuWrap">
+        <header>
+          <div class="logo"><span class="ball"></span><h1>PekaTenis <b>3D</b></h1></div>
+          <div class="playBtns">
+            <button id="btnAI" class="primary">Jugar contra la IA</button>
+            <button id="btnOnline">Jugar online</button>
+          </div>
+        </header>
+        <section><h2>Superficie</h2><div id="optSurface" class="cards"></div></section>
+        <section><h2>Tu estilo</h2><div id="optStyle" class="cards four"></div></section>
+        <section class="row2">
+          <div><h2>Dificultad de la IA</h2><div id="optDiff" class="chips"></div></div>
+          <div><h2>Partido</h2><div id="optMatch" class="chips"></div></div>
+        </section>
+        <section><h2>Ajustes</h2><div id="optToggles" class="chips"></div></section>
+        <p class="help">Cómo se juega: arrastra el dedo por la pista para apuntar (verás la trayectoria), pulsa un golpe cuando llegue la bola. El joystick de la izquierda mueve al jugador (con la asistencia activada corre solo). Para sacar, pulsa SACAR para lanzar la bola y otra vez en lo más alto.</p>
+      </div>
+    </div>
+    <div id="online" class="screen hidden">
+      <div class="panel">
+        <h2>Jugar online</h2>
+        <p class="small">Partida entre dos móviles por conexión directa (PeerJS). La superficie y el partido los elige quien crea la sala.</p>
+        <button id="btnHost" class="primary">Crear sala</button>
+        <div class="join"><input id="joinCode" maxlength="4" placeholder="CÓDIGO" autocapitalize="characters" autocomplete="off" /><button id="btnJoin">Unirse</button></div>
+        <div id="netStatus"></div>
+        <button id="btnOnlineBack" class="ghost">Volver</button>
+      </div>
+    </div>
+    <div id="pause" class="screen hidden">
+      <div class="panel">
+        <h2>Pausa</h2>
+        <button id="btnResume" class="primary">Seguir jugando</button>
+        <button id="btnQuit" class="ghost">Salir al menú</button>
+      </div>
+    </div>
+    <div id="end" class="screen hidden">
+      <div class="panel">
+        <h2 id="endTitle"></h2>
+        <div id="endScore"></div>
+        <div id="endStats"></div>
+        <button id="btnAgain" class="primary">Revancha</button>
+        <button id="btnEndMenu" class="ghost">Menú</button>
+      </div>
+    </div>
+    <div id="rotate"><div><div class="phone"></div>Gira el móvil para jugar en horizontal</div></div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

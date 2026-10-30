@@ -1,0 +1,148 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install JS deps
+        run: |
+          npm ci
+          # Capacitor solo para la APK; no se añade a package.json
+          npm i --no-save @capacitor/cli@^8.5.3 @capacitor/core@^8.5.3 @capacitor/android@^8.5.3
+
+      - name: Build web (relative base for Capacitor)
+        run: |
+          npx vite build --outDir www --emptyOutDir
+          npx cap sync android
+
+      - name: Smoke test www (móvil horizontal, sin errores)
+        run: |
+          npx playwright install --with-deps chromium
+          cat > /tmp/smoke.mjs <<'JS'
+          import { chromium } from "playwright";
+          import { createServer } from "node:http";
+          import { readFile } from "node:fs/promises";
+          import { extname, join } from "node:path";
+          const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json", ".webmanifest": "application/json" };
+          const srv = createServer(async (req, res) => {
+            let p = decodeURIComponent(req.url.split("?")[0]); if (p.endsWith("/")) p += "index.html";
+            try { const b = await readFile(join("www", p)); res.writeHead(200, { "content-type": types[extname(p)] || "application/octet-stream" }); res.end(b); }
+            catch { res.writeHead(404); res.end(); }
+          }).listen(8099);
+          const b = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+          const p = await b.newPage({ viewport: { width: 780, height: 360 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+          const errs = [];
+          p.on("pageerror", (e) => errs.push(e.message));
+          p.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+          await p.goto("http://127.0.0.1:8099/", { waitUntil: "load" });
+          await p.waitForTimeout(6000);
+          const txt = await p.innerText("body"); const canvases = await p.locator("canvas").count();
+          // WebGL por software en el runner es lento: la captura no debe tumbar el build.
+          try { await p.screenshot({ path: "smoke-landscape.png", timeout: 90000 }); } catch (e) { console.log("::warning::captura fallida: " + e.message.split("\n")[0]); }
+          console.log("canvas:", canvases, "text:", txt.slice(0, 120).replace(/\n/g, " | "));
+          console.log("errors:", errs);
+          await b.close(); srv.close();
+          if (!canvases || !/Jugar/.test(txt) || /error al arrancar/.test(txt)) { console.log("::error::La APK no monta el juego"); process.exit(1); }
+          JS
+          cp /tmp/smoke.mjs ./smoke.mjs && node smoke.mjs; rm -f smoke.mjs
+
+      - name: Upload smoke screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshot
+          path: smoke-landscape.png
+          if-no-files-found: warn
+
+      - name: Decode release keystore
+        env:
+          KS_B64: ${{ secrets.PEKAR_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KS_B64" ]; then echo "::error::PEKAR_KEYSTORE_BASE64 secret missing"; exit 1; fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "PEKAR_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Build release APK (zipalign, then sign v1+v2+v3)
+        working-directory: android
+        env:
+          PEKAR_KEYSTORE_PASSWORD: ${{ secrets.PEKAR_KEYSTORE_PASSWORD }}
+          PEKAR_KEY_PASSWORD: ${{ secrets.PEKAR_KEY_PASSWORD }}
+          PEKAR_KEY_ALIAS: ${{ secrets.PEKAR_KEY_ALIAS }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Verify alignment + signature
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          $BT/zipalign -c -P 16 4 "$APK"
+          $BT/apksigner verify --verbose --print-certs "$APK" | grep -E "Verified using v[123] |certificate SHA-256"
+          $BT/apksigner verify --print-certs "$APK" | grep -q "668fd481c81e7c388f8f17ce8a8d5e27b951b005f32262b175d36ebe25332443" || { echo "::error::Unexpected signing certificate"; exit 1; }
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Prepare artifact
+        id: prep
+        run: |
+          SRC=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then VERSION="1.0.0-dev"; fi
+          OUT="PekaTenis3D-${VERSION}.apk"
+          cp "$SRC" "$OUT"
+          echo "apk=$OUT" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          sha256sum "$OUT" | tee "$OUT.sha256"
+          ls -lh "$OUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PekaTenis3D-apk
+          path: |
+            ${{ steps.prep.outputs.apk }}
+            ${{ steps.prep.outputs.apk }}.sha256
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK="${{ steps.prep.outputs.apk }}"
+          VER="${{ steps.prep.outputs.version }}"
+          SUM=$(cut -d' ' -f1 "$APK.sha256")
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then gh release upload "$GITHUB_REF_NAME" "$APK" --clobber; exit 0; fi
+          gh release create "$GITHUB_REF_NAME" "$APK" \
+            --title "PekaTenis 3D $VER" \
+            --notes "$(cat <<NOTES
+          APK de Android de **PekaTenis 3D** (Capacitor): tenis 3D en pista dura, tierra batida y hierba, contra la IA u online con un amigo (PeerJS). Fija en horizontal.
+
+          - Paquete: \`com.pekapro.pekatenis3d\`
+          - Android 7 (API 24) o superior
+
+          **Instalar:** descarga el APK → permite apps desconocidas → Instalar.
+          Si Play Protect avisa, elige *Instalar de todas formas* (no está en Play Store).
+
+          SHA-256: \`$SUM\`
+          NOTES
+          )"

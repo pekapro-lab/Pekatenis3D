@@ -1,0 +1,22 @@
+import { newScore, pointTo, pointText } from "../src/scoring.js";
+let ok = 0, bad = 0; const eq = (a, b, m) => { if (JSON.stringify(a) === JSON.stringify(b)) ok++; else { bad++; console.log("FALLO", m, a, b); } };
+let s = newScore({ sets: 1, games: 6 });
+eq(pointText(s), ["0", "0"], "inicio");
+pointTo(s, 0); eq(pointText(s), ["15", "0"], "15");
+pointTo(s, 0); pointTo(s, 0); eq(pointText(s), ["40", "0"], "40");
+pointTo(s, 1); pointTo(s, 1); pointTo(s, 1); eq(pointText(s), ["Iguales", ""], "iguales");
+pointTo(s, 1); eq(pointText(s), ["", "Ventaja"], "ventaja rival");
+pointTo(s, 0); eq(pointText(s), ["Iguales", ""], "iguales 2");
+pointTo(s, 0); pointTo(s, 0); eq(s.sets[0], [1, 0], "juego"); eq(s.server, 1, "cambia saque");
+s = newScore({ sets: 1, games: 6 });
+const game = (p) => { for (let i = 0; i < 4; i++) pointTo(s, p); };
+for (let i = 0; i < 5; i++) { game(0); game(1); }
+eq(s.sets[0], [5, 5], "5-5"); game(0); game(1); eq(s.tb, true, "tie-break a 6-6");
+const tbServer = s.server; pointTo(s, 0); eq(s.server, 1 - tbServer, "tb saque cambia tras 1"); pointTo(s, 0); eq(s.server, 1 - tbServer, "tb mantiene"); pointTo(s, 0); eq(s.server, tbServer, "tb cambia cada 2");
+for (let i = 0; i < 5; i++) pointTo(s, 1); eq(pointText(s), ["3", "5"], "tb texto");
+pointTo(s, 1); pointTo(s, 1); eq(s.winner, 1, "gana tb 7-3 y partido");
+s = newScore({ sets: 3, games: 4 });
+for (let i = 0; i < 4; i++) game(0); eq(s.sets.length, 2, "nuevo set"); eq(s.winner, -1, "sin ganador");
+for (let i = 0; i < 4; i++) game(1); for (let i = 0; i < 4; i++) game(1); eq(s.winner, 1, "gana 2-1 sets");
+s = newScore({ sets: 1, games: 4 }); for (let i = 0; i < 3; i++) { game(0); game(1); } game(0); eq(s.winner, -1, "4-3 sigue"); game(0); eq(s.winner, 0, "5-3 gana");
+console.log(`marcador: ${ok} ok, ${bad} fallos`); process.exit(bad ? 1 : 0);
