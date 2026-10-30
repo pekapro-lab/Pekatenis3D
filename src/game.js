@@ -71,7 +71,7 @@ export class Match {
     Object.assign(b, { vx: v.vx, vy: v.vy, vz: v.vz, spin: v.spin, cord: false, inNet: false, rolling: false });
     this.phase = "flight"; this.phaseT = 0; this.hitter = sv.i; this.isServe = true; this.bounces = 0;
     sv.serving = false; sv.swing = { kind: "sv", t: 0.42 };
-    this.emit({ s: "hit", k: 1.1, p: sv.i });
+    this.emit({ s: "hit", k: 0.8 + 0.3 * q, p: sv.i, st: "SERVE" });
   }
   canHit(p) {
     const b = this.ball;
@@ -97,7 +97,7 @@ export class Match {
     Object.assign(b, { y: y0, vx: v.vx, vy: v.vy, vz: v.vz, spin: v.spin, cord: false, inNet: false, rolling: false });
     this.hits[p.i]++; this.hitter = p.i; this.isServe = false; this.bounces = 0; this.rally++; this.phaseT = 0;
     p.swing = { kind: (b.x - p.x) * s >= 0 ? "fh" : "bh", t: 0.42 }; p.prep = 0;
-    this.emit({ s: "hit", k: 0.6 + st.speed * 0.4, p: p.i });
+    this.emit({ s: "hit", k: 0.55 + st.speed * 0.4, p: p.i, st: strokeId });
     for (const o of this.players) o.aiPlan = null;
     const opp = this.players[1 - p.i]; opp.aiNext = this.t + (opp.isAI ? this.diff.react : 0);
   }
@@ -135,7 +135,7 @@ export class Match {
     }
     if (this.bounces === 0) {
       if (side === hz) { this.stats[this.hitter].errors++; return this.pointWon(opp, this.ball.inNet ? "A la red" : "No pasa la red"); }
-      if (Math.abs(e.x) > HALF_W + BALL_R || Math.abs(e.z) > HALF_L + BALL_R) { this.stats[this.hitter].errors++; return this.pointWon(opp, "¡Fuera!"); }
+      if (Math.abs(e.x) > HALF_W + BALL_R || Math.abs(e.z) > HALF_L + BALL_R) { this.stats[this.hitter].errors++; this.emit({ s: "out" }); return this.pointWon(opp, "¡Fuera!"); }
       this.bounces = 1; this.mark(e); return;
     }
     this.secondBounce();

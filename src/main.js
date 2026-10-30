@@ -6,17 +6,19 @@ import { solveShot, gEff } from "./physics.js";
 import { pointText, setsWon } from "./scoring.js";
 import { makePlayer } from "./player.js";
 import { buildStadium } from "./stadium.js";
-import { audio, sfx, unlockAudio, setCrowd, vibrate } from "./audio.js";
+import { audio, sfx, unlockAudio, setCrowd, vibrate, setVolume, setSurface, renderOffline } from "./audio.js";
 import * as net from "./net.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 // ---------- ajustes guardados ----------
-const DEF = { surface: "CLAY", style: "ALL", diff: "NORMAL", match: "SHORT", sound: true, vib: true, assist: true };
+const DEF = { surface: "CLAY", style: "ALL", diff: "NORMAL", match: "SHORT", vol: 0.7, vib: true, assist: true };
 let cfg = DEF;
 try { cfg = { ...DEF, ...JSON.parse(localStorage.getItem("pekatenis3d") || "{}") }; } catch (e) {}
 const save = () => { try { localStorage.setItem("pekatenis3d", JSON.stringify(cfg)); } catch (e) {} };
-audio.on = cfg.sound; audio.vib = cfg.vib;
+if (cfg.sound === false) cfg.vol = 0; delete cfg.sound;
+setVolume(cfg.vol); audio.vib = cfg.vib;
+const VOLS = [[0, "Silencio"], [0.35, "Bajo"], [0.7, "Medio"], [1, "Alto"]];
 
 // ---------- render ----------
 const canvas = $("c");
@@ -74,7 +76,7 @@ function startMatch(o) {
   names = o.names;
   showScreen(null); $("hud").classList.remove("hidden"); document.body.classList.add("playing");
   buildShotButtons();
-  unlockAudio(); setCrowd(0.05);
+  unlockAudio(); setSurface(o.surface); setCrowd(0.035);
 }
 function stopMatch() {
   mode = null; match = null; view = null;
@@ -176,9 +178,12 @@ function renderMenu() {
   const chips = (el, obj, key) => { el.innerHTML = ""; for (const o of Object.values(obj)) { const b = document.createElement("button"); b.className = "chip" + (cfg[key] === o.id ? " sel" : ""); b.textContent = o.name; b.onclick = () => { cfg[key] = o.id; save(); sfx("ui"); renderMenu(); }; el.appendChild(b); } };
   chips($("optDiff"), DIFFICULTY, "diff"); chips($("optMatch"), MATCH, "match");
   const tg = $("optToggles"); tg.innerHTML = "";
-  for (const [k, label] of [["sound", "Sonido"], ["vib", "Vibración"], ["assist", "Asistencia de movimiento"]]) {
+  const vb = document.createElement("button"); const vi = VOLS.findIndex((x) => x[0] === cfg.vol);
+  vb.className = "chip" + (cfg.vol > 0 ? " sel" : ""); vb.id = "btnVol"; vb.textContent = `${cfg.vol > 0 ? "🔊" : "🔇"} Volumen: ${(VOLS[vi] || VOLS[2])[1]}`;
+  vb.onclick = () => { cfg.vol = VOLS[((vi < 0 ? 2 : vi) + 1) % VOLS.length][0]; setVolume(cfg.vol); save(); unlockAudio(); renderMenu(); setTimeout(() => sfx("hit", 0.9, { stroke: "FLAT" }), 60); }; tg.appendChild(vb);
+  for (const [k, label] of [["vib", "Vibración"], ["assist", "Asistencia de movimiento"]]) {
     const b = document.createElement("button"); b.className = "chip" + (cfg[k] ? " sel" : ""); b.textContent = `${label}: ${cfg[k] ? "sí" : "no"}`;
-    b.onclick = () => { cfg[k] = !cfg[k]; audio.on = cfg.sound; audio.vib = cfg.vib; save(); renderMenu(); if (k === "vib" && cfg.vib) vibrate(40); }; tg.appendChild(b);
+    b.onclick = () => { cfg[k] = !cfg[k]; audio.vib = cfg.vib; save(); renderMenu(); if (k === "vib" && cfg.vib) vibrate(40); }; tg.appendChild(b);
   }
 }
 renderMenu();
@@ -230,10 +235,11 @@ $("btnJoin").addEventListener("click", () => {
 
 // ---------- eventos de sonido/vibración ----------
 function playEvent(e) {
-  if (e.s === "hit") { sfx("hit", e.k); if (e.p === me) vibrate(28); }
+  if (e.s === "hit") { sfx("hit", e.k, { stroke: e.st }); if (e.p === me) vibrate(28); }
   else if (e.s === "bounce") sfx("bounce", e.k);
   else if (e.s === "net") sfx("net");
   else if (e.s === "fault") sfx("fault");
+  else if (e.s === "out") sfx("out");
   else if (e.s === "applause") { sfx("applause"); world && world.stadium.cheer(); if (e.w === me) vibrate([20, 40, 20]); }
 }
 
@@ -354,7 +360,7 @@ function frame(now) {
   for (const e of snap.ev) { playEvent(e); pendingEv.push(e); }
   if (mode === "host" && link && now - lastSend > 33) { lastSend = now; link.send({ t: "s", ...snap, ev: pendingEv }); pendingEv = []; }
   if (mode !== "host") pendingEv = [];
-  setCrowd(snap.ph === "flight" ? 0.025 : 0.06);
+  setCrowd(snap.ph === "flight" ? 0.02 : 0.04);
   renderHud(snap); draw(snap, dt, T);
 }
 // fondo del menú: estadio girando
@@ -371,5 +377,5 @@ function idleRender(dt) {
 requestAnimationFrame(frame);
 window.__booted = true;
 // ayudas para pruebas automáticas
-window.__tenis = { get match() { return match; }, get mode() { return mode; }, get view() { return view; }, get me() { return me; }, startMatch, pressShot, pressServe, aimAt, cfg };
+window.__tenis = { get match() { return match; }, get mode() { return mode; }, get view() { return view; }, get me() { return me; }, startMatch, pressShot, renderOffline, pressServe, aimAt, cfg };
 if (params.has("demo")) startMatch({ mode: "demo", surface: params.get("surface") || "CLAY", diff: "NORMAL", match: "SHORT", styles: ["ALL", "SPIN"], ai: [true, true], me: 0, names: ["IA 1", "IA 2"] });

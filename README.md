@@ -9,7 +9,7 @@ Tenis 3D para móvil (en horizontal) hecho con **Vite + Three.js**. Todo se gene
 - Golpes: plano, liftado, cortado, globo, dejada y saque (primer y segundo saque).
 - Marcador real: 15-30-40, iguales/ventaja, juegos, sets y tie-break.
 - Contra la IA (Fácil, Normal, Difícil) u **online** con un amigo por código de sala (PeerJS, P2P).
-- Trayectoria al apuntar, vibración, sonido de golpes, botes y público.
+- Trayectoria al apuntar y vibración. Sonido 100 % procedural (WebAudio): golpe según tipo y potencia, bote distinto por superficie, red, público suave y aplausos, con compresor/limitador y volumen en el menú. `node scripts/render-audio.mjs` exporta muestras WAV.
 
 ## Controles
 - **Móvil:** arrastra por la pista para apuntar; pulsa un golpe cuando llegue la bola; joystick a la izquierda (con *Asistencia de movimiento* el jugador corre solo). SACAR: un toque lanza la bola, otro en lo más alto golpea.
